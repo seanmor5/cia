@@ -1,0 +1,117 @@
+# Getting Started
+
+```elixir
+Mix.install([{:cia, github: "seanmor5/cia"}])
+```
+
+## Minimal Agent
+
+```elixir
+openai_api_key = System.fetch_env!("LB_OPENAI_API_KEY")
+
+config =
+  CIA.new()
+  |> CIA.sandbox(:local)
+  |> CIA.workspace(:directory, root: "/tmp")
+  |> CIA.before_start(fn %{sandbox: sandbox} ->
+    with {:ok, _} <- CIA.exec(sandbox, ["mkdir", "-p", "/tmp/sandbox"]) do
+      :ok
+    end
+  end)
+  |> CIA.harness(:codex,
+    command: {"/opt/homebrew/bin/codex", ["app-server", "--listen", "stdio://"]},
+    auth: {:api_key, openai_api_key}
+  )
+
+{:ok, agent} = CIA.start(config)
+```
+
+## Create A Thread And Submit A Turn
+
+```elixir
+:ok = CIA.subscribe(agent)
+
+{:ok, thread} =
+  CIA.thread(agent,
+    cwd: "/tmp/sandbox",
+    model: "gpt-5.4"
+  )
+
+{:ok, turn} =
+  CIA.turn(agent, thread, "Create lib/demo.ex with a function that returns :ok.")
+```
+
+## Watch The Turn Do Work
+
+```elixir
+pretty = fn term ->
+  inspect(term, pretty: true, limit: :infinity, printable_limit: :infinity)
+end
+
+terminal_turn_event? = fn
+  %{"turnId" => turn_id, "status" => status} ->
+    turn_id == turn.id and status in ["completed", "failed", "cancelled"]
+
+  %{"id" => turn_id, "status" => status} ->
+    turn_id == turn.id and status in ["completed", "failed", "cancelled"]
+
+  %{"turn" => %{"id" => turn_id, "status" => status}} ->
+    turn_id == turn.id and status in ["completed", "failed", "cancelled"]
+
+  _ ->
+    false
+end
+
+print_codex_event = fn
+  {:server_message, %{method: method, params: params}} ->
+    IO.puts("\n[codex] #{method}")
+    IO.puts(pretty.(params || %{}))
+
+  {:channel_message, message} ->
+    IO.puts("\n[channel]")
+    IO.puts(pretty.(message))
+
+  {:stderr, data} ->
+    IO.puts("\n[stderr]")
+    IO.puts(data)
+
+  {:transport_exit, reason} ->
+    IO.puts("\n[transport_exit]")
+    IO.puts(pretty.(reason))
+
+  other ->
+    IO.puts("\n[event]")
+    IO.puts(pretty.(other))
+end
+
+listen = fn listen ->
+  receive do
+    {:cia, ^agent, {:harness, :codex, payload}} ->
+      print_codex_event.(payload)
+
+      stop? =
+        case payload do
+          {:transport_exit, _reason} ->
+            true
+
+          {:server_message, %{params: params}} ->
+            terminal_turn_event?.(params || %{})
+
+          _ ->
+            false
+        end
+
+      if stop? do
+        :ok
+      else
+        listen.(listen)
+      end
+  after
+    15_000 ->
+      IO.puts("\n[idle] no more Codex events")
+      :ok
+  end
+end
+
+listen.(listen)
+```
