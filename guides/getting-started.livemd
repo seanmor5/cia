@@ -14,7 +14,7 @@ config =
   |> CIA.sandbox(:local)
   |> CIA.workspace(:directory, root: "/tmp")
   |> CIA.before_start(fn %{sandbox: sandbox} ->
-    with {:ok, _} <- CIA.exec(sandbox, ["mkdir", "-p", "/tmp/sandbox"]) do
+    with {_, 0} <- CIA.Sandbox.cmd(sandbox, "mkdir", ["-p", "/tmp/sandbox"]) do
       :ok
     end
   end)

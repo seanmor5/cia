@@ -13,19 +13,16 @@ defmodule CIA.Sandbox.SpriteLiveTest do
     end
   end
 
-  test "exec runs a real command in Sprite", config do
+  test "cmd runs a real command in Sprite", config do
     sandbox = start_sprite!(config, ["/bin/sh", "-lc", "sleep 30"])
 
-    assert {:ok, output} =
-             Sandbox.exec(
+    assert {"sprite-ok", 0} =
+             Sandbox.cmd(
                sandbox,
-               ["/bin/sh", "-lc", "printf %s \"$CIA_SPRITE_TEST_VALUE\""],
+               "/bin/sh",
+               ["-lc", "printf %s \"$CIA_SPRITE_TEST_VALUE\""],
                env: %{"CIA_SPRITE_TEST_VALUE" => "sprite-ok"}
              )
-
-    assert output.stdout == "sprite-ok"
-    assert output.stderr == ""
-    assert output.exit_code == 0
   end
 
   test "interactive exec streams stdout over the Sprite channel", config do

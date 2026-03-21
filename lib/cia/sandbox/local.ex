@@ -47,7 +47,7 @@ defmodule CIA.Sandbox.Local do
         []
         |> maybe_put_exec_cd(Keyword.get(opts, :cwd))
         |> maybe_put_exec_env(Keyword.get(opts, :env, %{}))
-        |> Keyword.put(:stderr_to_stdout, true)
+        |> maybe_put_stderr_to_stdout(Keyword.get(opts, :stderr_to_stdout, false))
 
       case System.cmd(executable, args, exec_opts) do
         {output, 0} ->
@@ -108,6 +108,9 @@ defmodule CIA.Sandbox.Local do
 
   defp maybe_put_exec_env(opts, env) when is_map(env),
     do: Keyword.put(opts, :env, Map.to_list(env))
+
+  defp maybe_put_stderr_to_stdout(opts, true), do: Keyword.put(opts, :stderr_to_stdout, true)
+  defp maybe_put_stderr_to_stdout(opts, false), do: opts
 
   defp normalize_runtime_command({command, args})
        when is_binary(command) and is_list(args),

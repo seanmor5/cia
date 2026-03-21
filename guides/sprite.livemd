@@ -36,8 +36,13 @@ config =
   |> CIA.sandbox(:sprite, sandbox_opts)
   |> CIA.workspace(:directory, root: "/workspace")
   |> CIA.before_start(fn %{sandbox: sandbox} ->
-    with {:ok, _} <- CIA.exec(sandbox, ["mkdir", "-p", "/workspace/lib"]),
-         {:ok, _} <- CIA.exec(sandbox, ["sh", "-lc", "printf '%s\n' 'defmodule Demo do' 'end' > /workspace/lib/demo.ex"]) do
+    with {_, 0} <- CIA.Sandbox.cmd(sandbox, "mkdir", ["-p", "/workspace/lib"]),
+         {_, 0} <-
+           CIA.Sandbox.cmd(
+             sandbox,
+             "sh",
+             ["-lc", "printf '%s\n' 'defmodule Demo do' 'end' > /workspace/lib/demo.ex"]
+           ) do
       :ok
     end
   end)

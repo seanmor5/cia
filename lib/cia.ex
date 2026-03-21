@@ -30,8 +30,8 @@ defmodule CIA do
         |> CIA.sandbox(:local)
         |> CIA.workspace(:directory, root: "/workspace")
         |> CIA.before_start(fn %{sandbox: sandbox} ->
-          {:ok, _} = CIA.exec(sandbox, ["mkdir", "-p", "/workspace/lib"]),
-          {:ok, _} = CIA.exec(sandbox, ["git", "clone", "repo"]
+          {_, 0} = CIA.Sandbox.cmd(sandbox, "mkdir", ["-p", "/workspace/lib"]),
+          {_, 0} = CIA.Sandbox.cmd(sandbox, "git", ["clone", "repo"])
           :ok
         end)
         |> CIA.harness(:codex, auth: {:api_key, System.fetch_env!("OPENAI_API_KEY")})
@@ -188,11 +188,8 @@ defmodule CIA do
     end
   end
 
-  @doc """
-  Executes a one-shot command on a live sandbox runtime.
-
-  This is primarily intended for use from `before_start/2` hooks.
-  """
+  @deprecated "Use CIA.Sandbox.cmd/4 instead."
+  @doc false
   def exec(sandbox, command, opts \\ []) when is_list(command) and is_list(opts) do
     Sandbox.exec(sandbox, command, opts)
   end

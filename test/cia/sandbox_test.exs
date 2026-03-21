@@ -6,7 +6,18 @@ defmodule CIA.SandboxTest do
   defmodule FakeSandbox do
     def start(sandbox, opts), do: {:ok, %{sandbox: sandbox, opts: opts}}
     def stop(sandbox), do: {:ok, sandbox}
-    def exec(sandbox, command, opts), do: {:ok, %{sandbox: sandbox, command: command, opts: opts}}
+
+    def exec(sandbox, command, opts),
+      do:
+        {:ok,
+         %{
+           sandbox: sandbox,
+           command: command,
+           opts: opts,
+           stdout: "ok\n",
+           stderr: "",
+           exit_code: 0
+         }}
   end
 
   defmodule SandboxWithoutExec do
@@ -117,25 +128,37 @@ defmodule CIA.SandboxTest do
     assert :ok = Sandbox.stop(runtime)
   end
 
-  test "exec delegates to the sandbox module when supported" do
+  test "cmd delegates to the sandbox module and returns System.cmd-style output" do
     sandbox = %Sandbox{id: "sandbox_1", provider: FakeSandbox}
 
-    assert Sandbox.exec(sandbox, ["echo", "ok"], cwd: "/tmp") ==
-             {:ok, %{sandbox: sandbox, command: ["echo", "ok"], opts: [cwd: "/tmp"]}}
+    assert Sandbox.cmd(sandbox, "echo", ["ok"], cd: "/tmp") == {"ok\n", 0}
   end
 
-  test "local exec returns command_not_found for missing executables" do
+  test "cmd returns sandbox errors when the executable is missing" do
     sandbox = %CIA.Sandbox.Local{}
 
-    assert Sandbox.exec(sandbox, ["cia-command-that-does-not-exist"]) ==
+    assert Sandbox.cmd(sandbox, "cia-command-that-does-not-exist") ==
              {:error, {:command_not_found, "cia-command-that-does-not-exist"}}
   end
 
-  test "exec returns an unsupported operation error when exec is not exported" do
+  test "cmd returns output and status for non-zero exits" do
+    sandbox = %CIA.Sandbox.Local{}
+
+    assert Sandbox.cmd(sandbox, "/bin/sh", ["-lc", "printf failing && exit 7"]) ==
+             {"failing", 7}
+  end
+
+  test "cmd returns an unsupported operation error when exec is not exported" do
     sandbox = %Sandbox{id: "sandbox_1", provider: SandboxWithoutExec}
 
-    assert Sandbox.exec(sandbox, ["echo", "ok"]) ==
-             {:error, {:unsupported_sandbox_operation, :exec}}
+    assert Sandbox.cmd(sandbox, "echo", ["ok"]) ==
+             {:error, {:unsupported_sandbox_operation, :cmd}}
+  end
+
+  test "cmd respects the into option" do
+    sandbox = %Sandbox{id: "sandbox_1", provider: FakeSandbox}
+
+    assert Sandbox.cmd(sandbox, "echo", ["ok"], into: []) == {["ok\n"], 0}
   end
 
   test "stop delegates to the sandbox module" do
